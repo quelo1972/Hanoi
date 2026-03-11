@@ -62,7 +62,7 @@ class HanoiGame:
         self.min_label.pack(side="left")
 
         # Timer display
-        self.time_label = tk.Label(top, text="Tempo: 0.00s")
+        self.time_label = tk.Label(top, text="Tempo: 00:00.00")
         self.time_label.pack(side="left")
 
         self.canvas = tk.Canvas(self.root,
@@ -94,6 +94,13 @@ class HanoiGame:
 
     # ---------------- TIMER ----------------
 
+    def format_time(self, elapsed):
+        total_cs = int(elapsed * 100)
+        minutes = total_cs // 6000
+        seconds = (total_cs // 100) % 60
+        centis = total_cs % 100
+        return f"{minutes:02d}:{seconds:02d}.{centis:02d}"
+
     def start_timer(self):
         if not self.timer_running:
             self.start_time = time.time()
@@ -103,7 +110,7 @@ class HanoiGame:
     def update_timer(self):
         if self.timer_running and self.start_time is not None:
             elapsed = time.time() - self.start_time
-            self.time_label.config(text=f"Tempo: {elapsed:.2f}s")
+            self.time_label.config(text=f"Tempo: {self.format_time(elapsed)}")
             self.root.after(100, self.update_timer)
 
     def stop_timer(self):
@@ -176,14 +183,14 @@ class HanoiGame:
                     elapsed = time.time() - self.start_time
                 # stop the timer immediately and freeze the display
                 self.stop_timer()
-                self.time_label.config(text=f"Tempo: {elapsed:.2f}s")
+                self.time_label.config(text=f"Tempo: {self.format_time(elapsed)}")
 
                 messagebox.showinfo(
                     "Vittoria!",
                     f"Hai completato la torre!\n\n"
                     f"Mosse: {self.move_count}\n"
                     f"Minimo teorico: {min_moves}\n"
-                    f"Tempo: {elapsed:.2f}s"
+                    f"Tempo: {self.format_time(elapsed)}"
                 )
                 self.auto_mode = True
                 return
@@ -255,7 +262,7 @@ class HanoiGame:
         # reset timer
         self.start_time = None
         self.timer_running = False
-        self.time_label.config(text="Tempo: 0.00s")
+        self.time_label.config(text="Tempo: 00:00.00")
 
         self.init_towers()
         self.draw()
