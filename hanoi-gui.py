@@ -17,6 +17,10 @@ class HanoiGame:
         self.selected_tower = None
         self.auto_mode = False
 
+        # timing
+        self.start_time = None
+        self.timer_running = False
+
         self.colors = ["red","orange","yellow","green","cyan",
                        "blue","purple","brown","pink","magenta"]
         self.tower_centers = [150, 300, 450]
@@ -57,6 +61,10 @@ class HanoiGame:
         self.min_label = tk.Label(top, text="Minime: 0")
         self.min_label.pack(side="left")
 
+        # Timer display
+        self.time_label = tk.Label(top, text="Tempo: 0.00s")
+        self.time_label.pack(side="left")
+
         self.canvas = tk.Canvas(self.root,
                                 width=600,
                                 height=400,
@@ -83,6 +91,23 @@ class HanoiGame:
         self.move_label.config(text=f"Mosse: {self.move_count}")
         min_moves = 2**self.num_disks - 1
         self.min_label.config(text=f"Minime: {min_moves}")
+
+    # ---------------- TIMER ----------------
+
+    def start_timer(self):
+        if not self.timer_running:
+            self.start_time = time.time()
+            self.timer_running = True
+            self.update_timer()
+
+    def update_timer(self):
+        if self.timer_running and self.start_time is not None:
+            elapsed = time.time() - self.start_time
+            self.time_label.config(text=f"Tempo: {elapsed:.2f}s")
+            self.root.after(100, self.update_timer)
+
+    def stop_timer(self):
+        self.timer_running = False
 
     def draw(self):
         self.canvas.delete("all")
@@ -129,6 +154,10 @@ class HanoiGame:
         if not self.valid_move(from_t, to_t):
             return
 
+        # start timer on first move (manual play)
+        if not self.timer_running:
+            self.start_timer()
+
         disk = self.towers[from_t].pop()
         self.towers[to_t].append(disk)
 
@@ -141,13 +170,19 @@ class HanoiGame:
         for i in (1, 2):  # torri diverse da 0
             if len(self.towers[i]) == self.num_disks:
                 min_moves = 2**self.num_disks - 1
+                # compute elapsed time if available
+                elapsed = 0.0
+                if self.start_time is not None:
+                    elapsed = time.time() - self.start_time
                 messagebox.showinfo(
                     "Vittoria!",
                     f"Hai completato la torre!\n\n"
                     f"Mosse: {self.move_count}\n"
-                    f"Minimo teorico: {min_moves}"
+                    f"Minimo teorico: {min_moves}\n"
+                    f"Tempo: {elapsed:.2f}s"
                 )
                 self.auto_mode = True
+                self.stop_timer()
                 return
 
     # ---------------- CLICK ----------------
@@ -201,6 +236,8 @@ class HanoiGame:
 
         self.init_towers()
         self.draw()
+        # start timing for auto mode
+        self.start_timer()
 
         self.root.after(500, lambda:
                         self.hanoi_auto(self.num_disks, 0, 2, 1))
@@ -211,6 +248,11 @@ class HanoiGame:
             self.num_disks = int(self.disk_entry.get())
         except:
             self.num_disks = 4
+
+        # reset timer
+        self.start_time = None
+        self.timer_running = False
+        self.time_label.config(text="Tempo: 0.00s")
 
         self.init_towers()
         self.draw()
