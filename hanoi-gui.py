@@ -174,6 +174,10 @@ class HanoiGame:
                 elapsed = 0.0
                 if self.start_time is not None:
                     elapsed = time.time() - self.start_time
+                # stop the timer immediately and freeze the display
+                self.stop_timer()
+                self.time_label.config(text=f"Tempo: {elapsed:.2f}s")
+
                 messagebox.showinfo(
                     "Vittoria!",
                     f"Hai completato la torre!\n\n"
@@ -182,7 +186,6 @@ class HanoiGame:
                     f"Tempo: {elapsed:.2f}s"
                 )
                 self.auto_mode = True
-                self.stop_timer()
                 return
 
     # ---------------- CLICK ----------------
