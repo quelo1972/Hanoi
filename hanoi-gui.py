@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import tkinter as tk
 from tkinter import messagebox
+import sqlite3
 import time
 
 class HanoiGame:
@@ -16,6 +17,7 @@ class HanoiGame:
         self.delay = 500
         self.selected_tower = None
         self.auto_mode = False
+        self.game_over = False
 
         # timing
         self.start_time = None
@@ -25,7 +27,11 @@ class HanoiGame:
                        "blue","purple","brown","pink","magenta"]
         self.tower_centers = [150, 300, 450]
 
+        # persistence
+        self.db_path = "hanoi.sqlite"
+
         self.build_ui()
+        self.init_db()
         self.init_towers()
         self.draw()
 
@@ -41,11 +47,19 @@ class HanoiGame:
         self.disk_entry.insert(0, str(self.num_disks))
         self.disk_entry.pack(side="left")
 
+        tk.Label(top, text="Giocatore:").pack(side="left")
+        self.player_entry = tk.Entry(top, width=12)
+        self.player_entry.insert(0, "Anonimo")
+        self.player_entry.pack(side="left")
+
         tk.Button(top, text="Start Auto",
                   command=self.start_auto).pack(side="left")
 
         tk.Button(top, text="Reset",
                   command=self.reset_game).pack(side="left")
+
+        tk.Button(top, text="Top 10",
+                  command=self.show_top_ten).pack(side="left")
 
         tk.Label(top, text="Velocità").pack(side="left")
 
@@ -85,6 +99,7 @@ class HanoiGame:
 
         self.move_count = 0
         self.selected_tower = None
+        self.game_over = False
         self.update_labels()
 
     def update_labels(self):
@@ -174,6 +189,9 @@ class HanoiGame:
         self.check_win()
 
     def check_win(self):
+        if self.game_over:
+            return
+
         for i in (1, 2):  # torri diverse da 0
             if len(self.towers[i]) == self.num_disks:
                 min_moves = 2**self.num_disks - 1
@@ -184,6 +202,11 @@ class HanoiGame:
                 # stop the timer immediately and freeze the display
                 self.stop_timer()
                 self.time_label.config(text=f"Tempo: {self.format_time(elapsed)}")
+
+                player = self.get_player_name()
+                tempo = self.format_time(elapsed)
+                self.save_result(player, self.move_count, min_moves, tempo)
+                self.game_over = True
 
                 messagebox.showinfo(
                     "Vittoria!",
@@ -267,6 +290,158 @@ class HanoiGame:
         self.init_towers()
         self.draw()
 
+    # ---------------- DB ----------------
+
+    def init_db(self):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS risultati (
+                    giocatore TEXT NOT NULL,
+                    n_mosse INTEGER NOT NULL,
+                    minimo TEXT NOT NULL,
+                    tempo TEXT NOT NULL
+                )
+                """
+            )
+
+    def ensure_table(self, num_disks):
+        table = f"risultati_{num_disks}"
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {table} (
+                    giocatore TEXT NOT NULL,
+                    mosse INTEGER NOT NULL,
+                    min_mosse INTEGER NOT NULL,
+                    tempo TEXT NOT NULL
+                )
+                """
+            )
+
+            columns = {
+                row[1]
+                for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+            }
+
+            if columns != {"giocatore", "mosse", "min_mosse", "tempo"}:
+                temp_table = f"{table}_v2"
+                conn.execute(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS {temp_table} (
+                        giocatore TEXT NOT NULL,
+                        mosse INTEGER NOT NULL,
+                        min_mosse INTEGER NOT NULL,
+                        tempo TEXT NOT NULL
+                    )
+                    """
+                )
+
+                if "n_mosse" in columns:
+                    conn.execute(
+                        f"""
+                        INSERT INTO {temp_table} (giocatore, mosse, min_mosse, tempo)
+                        SELECT giocatore, n_mosse, ?, tempo
+                        FROM {table}
+                        """,
+                        (2**num_disks - 1,),
+                    )
+                elif "mosse" in columns:
+                    conn.execute(
+                        f"""
+                        INSERT INTO {temp_table} (giocatore, mosse, min_mosse, tempo)
+                        SELECT giocatore, mosse, ?, tempo
+                        FROM {table}
+                        """,
+                        (2**num_disks - 1,),
+                    )
+
+                conn.execute(f"DROP TABLE {table}")
+                conn.execute(f"ALTER TABLE {temp_table} RENAME TO {table}")
+        return table
+
+    def get_player_name(self):
+        name = self.player_entry.get().strip()
+        return name if name else "Anonimo"
+
+    def save_result(self, giocatore, mosse, min_mosse, tempo):
+        table = self.ensure_table(self.num_disks)
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                f"INSERT INTO {table} (giocatore, mosse, min_mosse, tempo) VALUES (?, ?, ?, ?)",
+                (giocatore, mosse, min_mosse, tempo)
+            )
+
+    def show_top_ten(self):
+        try:
+            n = int(self.disk_entry.get())
+            if n <= 0 or n > 10:
+                n = self.num_disks
+        except:
+            n = self.num_disks
+
+        table = self.ensure_table(n)
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT giocatore, mosse, min_mosse, tempo
+                FROM {table}
+                ORDER BY
+                    CASE WHEN mosse = min_mosse THEN 0 ELSE 1 END,
+                    tempo ASC
+                LIMIT 10
+                """
+            ).fetchall()
+
+        if not rows:
+            messagebox.showinfo("Top 10", "Nessun risultato salvato.")
+            return
+
+        header = f"Top 10 dischi: {n}"
+        widths = {"pos": 3, "name": 14, "time": 10, "moves": 7, "min": 7}
+        title = (
+            f"{'#':<{widths['pos']}} | "
+            f"{'Giocatore':<{widths['name']}} | "
+            f"{'Tempo':<{widths['time']}} | "
+            f"{'Mosse':<{widths['moves']}} | "
+            f"{'Minimo':<{widths['min']}}"
+        )
+        sep = "".join("+" if c == "|" else "-" for c in title)
+        lines = [title, sep]
+        for i, (g, m, min_m, t) in enumerate(rows, start=1):
+            name = g[:widths["name"] - 1]
+            lines.append(
+                f"{i:<{widths['pos']}} | "
+                f"{name:<{widths['name']}} | "
+                f"{t:<{widths['time']}} | "
+                f"{m:<{widths['moves']}} | "
+                f"{min_m:<{widths['min']}}"
+            )
+
+        self.show_table_window(header, "\n".join(lines))
+
+    def show_table_window(self, title, content):
+        win = tk.Toplevel(self.root)
+        win.title(title)
+        win.transient(self.root)
+        win.grab_set()
+
+        tk.Label(win, text=title, font=("Courier", 12, "bold")).pack(
+            side="top", anchor="w", padx=10, pady=(10, 4)
+        )
+        text = tk.Text(
+            win,
+            font=("Courier", 11),
+            width=60,
+            height=12,
+            padx=6,
+            pady=6,
+            borderwidth=0,
+            wrap="none",
+        )
+        text.insert("1.0", content)
+        text.configure(state="disabled")
+        text.pack(side="top", fill="both", expand=True, padx=10, pady=(0, 10))
 
 # ---------------- AVVIO ----------------
 
