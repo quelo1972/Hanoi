@@ -1,4 +1,4 @@
-# KDE-Epson-FAX
+# La torre di Hanoi
 
 Repository bootstrap for the KDE-Epson-FAX project.
 
