@@ -418,9 +418,24 @@ class HanoiGame:
                 f"{min_m:<{widths['min']}}"
             )
 
-        self.show_table_window(header, "\n".join(lines))
+        def reset_top_ten():
+            if not messagebox.askyesno(
+                "Conferma reset",
+                f"Vuoi svuotare la top ten per {n} dischi?",
+            ):
+                return
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(f"DELETE FROM {table}")
+            return True
 
-    def show_table_window(self, title, content):
+        self.show_table_window(
+            header,
+            "\n".join(lines),
+            reset_label="Reset",
+            on_reset=reset_top_ten,
+        )
+
+    def show_table_window(self, title, content, reset_label=None, on_reset=None):
         win = tk.Toplevel(self.root)
         win.title(title)
         win.transient(self.root)
@@ -442,6 +457,23 @@ class HanoiGame:
         text.insert("1.0", content)
         text.configure(state="disabled")
         text.pack(side="top", fill="both", expand=True, padx=10, pady=(0, 10))
+
+        if reset_label and on_reset:
+            actions = tk.Frame(win)
+            actions.pack(side="bottom", fill="x", padx=10, pady=(0, 10))
+
+            def handle_reset():
+                did_reset = on_reset()
+                if not did_reset:
+                    return
+                text.configure(state="normal")
+                text.delete("1.0", "end")
+                text.insert("1.0", "Nessun risultato salvato.")
+                text.configure(state="disabled")
+                reset_btn.configure(state="disabled")
+
+            reset_btn = tk.Button(actions, text=reset_label, command=handle_reset)
+            reset_btn.pack(side="right")
 
 # ---------------- AVVIO ----------------
 
