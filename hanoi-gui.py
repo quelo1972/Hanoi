@@ -48,7 +48,7 @@ class HanoiGame:
         self.disk_entry.pack(side="left")
 
         tk.Label(top, text="Giocatore:").pack(side="left")
-        self.player_entry = tk.Entry(top, width=12)
+        self.player_entry = tk.Entry(top, width=20)
         self.player_entry.insert(0, "Anonimo")
         self.player_entry.pack(side="left")
 
@@ -398,7 +398,7 @@ class HanoiGame:
             return
 
         header = f"Top 10 dischi: {n}"
-        widths = {"pos": 3, "name": 14, "time": 10, "moves": 7, "min": 7}
+        widths = {"pos": 3, "name": 22, "time": 10, "moves": 7, "min": 7}
         title = (
             f"{'#':<{widths['pos']}} | "
             f"{'Giocatore':<{widths['name']}} | "
